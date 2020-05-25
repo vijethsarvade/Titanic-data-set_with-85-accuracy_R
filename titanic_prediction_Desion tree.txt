@@ -1,0 +1,259 @@
+training=read.csv(file.choose())
+testing=read.csv(file.choose())
+names(training)
+names(testing)
+testing["Survived"]=NA #adding new column to train data
+names(testing)
+training$lable=sapply(training$PassengerId, function(x){"Train_set"})
+testing$lable=sapply(testing$PassengerId, function(x){"Test_set"})
+
+#combaining both training and testing sets using rbind function
+train_test=rbind(training,testing)
+str(train_test)
+summary(train_test)
+colSums(is.na(train_test))
+
+#missing values detection
+library(ggplot2)
+ggplot(train_test,aes(Pclass,Age))+geom_boxplot(aes(fill=factor(Pclass)))
+#plot confirms that Pclass1 approximately 39,Pclass2=29,Pclass2=25
+inputage=function(age,class){
+  for (i in 1:length(age)){
+    if(is.na(age[i])){
+      if(class[i]==1){
+        age[i]=39}
+      else if(class[i]==2){
+        age[i]=29}
+      else{age[i]=24}
+    }
+  }
+  return(age)
+}
+Miss_age=inputage(train_test$Age,train_test$Pclass)
+train_test$Age=as.integer(Miss_age)
+colSums(is.na(train_test))
+train_test$Fare[is.na(train_test$Fare)]=0#replacing na in fare column
+colSums(is.na(train_test))
+
+
+#visualization and analysis
+library(ggplot2)
+
+#survived count by sex
+aggregate(data.frame(count=training$Survived),list(value=training$Survived),length)
+aggregate(data.frame(count=training$Sex),list(value=training$Survived,training$Sex),length)
+ggplot(training,aes(factor(Survived)))+geom_bar(aes(fill=Sex),position = "dodge")+theme_classic()+scale_x_discrete()
+
+#survived count by Pclass
+aggregate(data.frame(count=training$Survived),list(value=training$Pclass),length)
+aggregate(data.frame(count=training$Sex),list(value=training$Survived,training$Pclass),length)
+ggplot(training,aes(factor(Survived)))+geom_bar(aes(fill=factor(Pclass)),position = "dodge")+theme_classic()
+
+#survived count by Age
+ggplot(training,aes(factor(Survived),Age))+geom_boxplot(aes(fill=factor(Sex)))+theme_light()
+aggregate(data.frame(count=training$Survived),list(value=training$Survived,training$Age),length)
+mean(train$Age)
+
+#To check total no. of sibblings and same through ggplot
+aggregate(data.frame(count=training$SibSp),list(value=training$SibSp),length)
+nrow(training[training$SibSp==8,])
+
+#percentage of survived
+nrow(training[training$Survived==1,]) / length(training$Survived)
+####that comes to 38.38per of survived out of 891
+
+#percentage of male & female survived
+nrow(training[training$Survived==1 & training$Sex=="male",]) / length(training$Sex=="male")
+####that comes to 12.23% male 
+nrow(training[training$Survived==1 & training$Sex=="female",]) / length(training$Sex=="female")
+####that comes to 26.15% female
+
+#percetange of who survived class wise
+nrow(training[training$Survived==1 & training$Pclass==1,]) / length(training$Pclass== 1)##15.3%
+nrow(training[training$Survived==1 & training$Pclass==2,]) / length(training$Pclass== 2)##9.8%
+nrow(training[training$Survived==1 & training$Pclass==3,]) / length(training$Pclass== 3)##13.3%**
+
+prop.table(table(training$Survived))
+prop.table(table(training$Sex))
+prop.table(table(training$Pclass))
+
+#replacing the female and male with values 0,1 (charecter to binnary value) for manupalation
+train_test$Sex=as.factor(train_test$Sex)
+levels(train_test$Sex)=c(0,1)
+train_test$Sex=as.integer(train_test$Sex)
+str(train_test)
+
+#Data Manupalation
+library(dplyr)
+train_test1=subset(train_test,select = c(2,3,5,6,7,8,10))
+plot(train_test1)
+pairs(train_test1)
+cor(train_test1)##since the values lies b/w -1 to 1 there exhist as strong co-relationship
+
+#Model building
+train_test1=subset(train_test,select = c(2,3,5,6,7,8,10,13))
+train=filter(train_test1,lable=="Train_set")
+test=filter(train_test1,lable=="Test_set")
+train$lable=NULL
+test$lable=NULL
+train_model=glm(Survived~.,train,family = binomial(link = "logit"))
+summary(train_model)
+confint(train_model)###level of confidence
+predict(train_model,train,type = "response")
+prob=predict(train_model,train,type = "response")
+estimatedprob=ifelse(prob>0.5,1,0)
+estimated_survial=data.frame(estimatedprob)
+train_predict=cbind(train,estimated_survial)
+
+###Accuracy check###
+table(train_predict$Survived,train_predict$estimatedprob)
+
+####81% accuracy level
+
+###Testing the model
+predict(train_model,test,type = "response")
+prob2=predict(train_model,test,type = "response")
+estimatedprob2=ifelse(prob2>0.5,1,0)
+estimated_survial2=data.frame(estimatedprob2)
+test_predict=cbind(test,estimated_survial2)
+
+Survi_predict=cbind(testing,estimated_survial2)
+Survival1=subset(Survi_predict,select = c(1,14))
+write.csv(Survival1,file = "Survival_prediction.csv")
+
+
+#####Decision tree#####
+library(rpart)
+Survival_model=rpart(Survived~.,data=train,method = "class")
+Survival_model
+predict(Survival_model,train,type = "class")
+p=predict(Survival_model,train,type = "class")
+Predicted=data.frame(p)
+train_predict=cbind(train,Predicted)
+
+###Accuracy in decision tree 84.39%
+table(train_predict$Survived,train_predict$p)
+
+library(rpart.plot)
+rpart.plot(Survival_model)
+prp(Survival_model)training=read.csv(file.choose())
+testing=read.csv(file.choose())
+names(training)
+names(testing)
+testing["Survived"]=NA #adding new column to train data
+names(testing)
+training$lable=sapply(training$PassengerId, function(x){"Train_set"})
+testing$lable=sapply(testing$PassengerId, function(x){"Test_set"})
+
+#combaining both training and testing sets using rbind function
+train_test=rbind(training,testing)
+str(train_test)
+summary(train_test)
+colSums(is.na(train_test))
+
+#missing values detection
+library(ggplot2)
+ggplot(train_test,aes(Pclass,Age))+geom_boxplot(aes(fill=factor(Pclass)))
+#plot confirms that Pclass1 approximately 39,Pclass2=29,Pclass2=25
+inputage=function(age,class){
+  for (i in 1:length(age)){
+    if(is.na(age[i])){
+      if(class[i]==1){
+        age[i]=39}
+      else if(class[i]==2){
+        age[i]=29}
+      else{age[i]=24}
+    }
+  }
+  return(age)
+}
+Miss_age=inputage(train_test$Age,train_test$Pclass)
+train_test$Age=as.integer(Miss_age)
+colSums(is.na(train_test))
+train_test$Fare[is.na(train_test$Fare)]=0#replacing na in fare column
+colSums(is.na(train_test))
+
+
+#visualization and analysis
+library(ggplot2)
+
+#survived count by sex
+aggregate(data.frame(count=training$Survived),list(value=training$Survived),length)
+aggregate(data.frame(count=training$Sex),list(value=training$Survived,training$Sex),length)
+ggplot(training,aes(factor(Survived)))+geom_bar(aes(fill=Sex),position = "dodge")+theme_classic()+scale_x_discrete()
+
+#survived count by Pclass
+aggregate(data.frame(count=training$Survived),list(value=training$Pclass),length)
+aggregate(data.frame(count=training$Sex),list(value=training$Survived,training$Pclass),length)
+ggplot(training,aes(factor(Survived)))+geom_bar(aes(fill=factor(Pclass)),position = "dodge")+theme_classic()
+
+#survived count by Age
+ggplot(training,aes(factor(Survived),Age))+geom_boxplot(aes(fill=factor(Sex)))+theme_light()
+aggregate(data.frame(count=training$Survived),list(value=training$Survived,training$Age),length)
+mean(train$Age)
+
+#To check total no. of sibblings and same through ggplot
+aggregate(data.frame(count=training$SibSp),list(value=training$SibSp),length)
+nrow(training[training$SibSp==8,])
+
+#percentage of survived
+nrow(training[training$Survived==1,]) / length(training$Survived)
+####that comes to 38.38per of survived out of 891
+
+#percentage of male & female survived
+nrow(training[training$Survived==1 & training$Sex=="male",]) / length(training$Sex=="male")
+####that comes to 12.23% male 
+nrow(training[training$Survived==1 & training$Sex=="female",]) / length(training$Sex=="female")
+####that comes to 26.15% female
+
+#percetange of who survived class wise
+nrow(training[training$Survived==1 & training$Pclass==1,]) / length(training$Pclass== 1)##15.3%
+nrow(training[training$Survived==1 & training$Pclass==2,]) / length(training$Pclass== 2)##9.8%
+nrow(training[training$Survived==1 & training$Pclass==3,]) / length(training$Pclass== 3)##13.3%**
+
+prop.table(table(training$Survived))
+prop.table(table(training$Sex))
+prop.table(table(training$Pclass))
+
+#replacing the female and male with values 0,1 (charecter to binnary value) for manupalation
+train_test$Sex=as.factor(train_test$Sex)
+levels(train_test$Sex)=c(0,1)
+train_test$Sex=as.integer(train_test$Sex)
+str(train_test)
+
+#Data Manupalation
+library(dplyr)
+train_test1=subset(train_test,select = c(2,3,5,6,7,8,10))
+plot(train_test1)
+pairs(train_test1)
+cor(train_test1)##since the values lies b/w -1 to 1 there exhist as strong co-relationship
+
+#Model building
+train_test1=subset(train_test,select = c(2,3,5,6,7,8,10,13))
+train=filter(train_test1,lable=="Train_set")
+test=filter(train_test1,lable=="Test_set")
+train$lable=NULL
+test$lable=NULL
+train_model=glm(Survived~.,train,family = binomial(link = "logit"))
+summary(train_model)
+confint(train_model)###level of confidence
+predict(train_model,train,type = "response")
+prob=predict(train_model,train,type = "response")
+estimatedprob=ifelse(prob>0.5,1,0)
+estimated_survial=data.frame(estimatedprob)
+train_predict=cbind(train,estimated_survial)
+
+###Accuracy check###
+table(train_predict$Survived,train_predict$estimatedprob)
+
+####81% accuracy level
+
+###Testing the model
+predict(train_model,test,type = "response")
+prob2=predict(train_model,test,type = "response")
+estimatedprob2=ifelse(prob2>0.5,1,0)
+estimated_survial2=data.frame(estimatedprob2)
+test_predict=cbind(test,estimated_survial2)
+
+Survi_predict=cbind(testing,estimated_survial2)
+Survival1=subset(Survi_predict,select = c(1,3,14))
